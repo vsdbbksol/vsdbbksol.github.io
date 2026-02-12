@@ -8,13 +8,14 @@
   <script src="https://telegram.org/js/telegram-web-app.js?59"></script>
 
   <style>
-    /* ПОЛНОЭКРАННЫЙ РЕЖИМ */
+    /* ПОЛНОЭКРАННЫЙ РЕЖИМ (без отключения прокрутки всего документа) */
     html, body {
       margin: 0;
       padding: 0;
       width: 100%;
       height: 100%;
-      overflow: hidden;
+      /* Убираем запрет прокрутки на уровне документа */
+      overflow: auto;
     }
 
     body {
@@ -24,24 +25,26 @@
       flex-direction: column;
     }
 
-    /* КОНТЕЙНЕР С ПРОКРУТКОЙ */
+    /* КОНТЕЙНЕР С ПРОКРУТКОЙ (на уровне документа) */
     .scrollable-container {
       flex: 1;
       width: 100%;
       height: 100%;
-      overflow-y: auto !important;
+      overflow-y: auto;
+      overflow-x: hidden;
       -webkit-overflow-scrolling: touch;
       position: relative;
     }
 
-    /* IFRAME - ВЫСОТА БУДЕТ УСТАНАВЛИВАТЬСЯ СКРИПТОМ */
+    /* ИФРАЙМ без фикса высоты: позволим прокручивать содержимое внутри iframe */
     iframe {
       width: 100%;
       border: none;
       display: block;
       background: white;
-      height: 1px; /* ВРЕМЕННО, ПОТОМ ПЕРЕОПРЕДЕЛИМ */
-      transition: height 0.2s ease; /* Плавное изменение высоты */
+      height: 1000px;      /* начальная высота; будет растягиваться внутри iframe контентом */
+      min-height: 1000px;
+      max-height: none;
     }
 
     .loading {
@@ -53,25 +56,8 @@
       color: white;
       padding: 15px 25px;
       border-radius: 10px;
-      z-index: 1000;
+      z-index: 10000;
       display: none;
-    }
-
-    /* ИНДИКАТОР ТОГО, ЧТО МОЖНО ПРОКРУЧИВАТЬ ДАЛЬШЕ */
-    .scroll-hint {
-      position: fixed;
-      bottom: 20px;
-      left: 50%;
-      transform: translateX(-50%);
-      background: rgba(0,0,0,0.6);
-      color: white;
-      padding: 8px 16px;
-      border-radius: 20px;
-      font-size: 14px;
-      z-index: 1001;
-      opacity: 0;
-      transition: opacity 0.3s;
-      pointer-events: none;
     }
   </style>
 </head>
@@ -79,7 +65,6 @@
 <body>
 
   <div class="loading" id="loading">Загрузка формы...</div>
-  <div class="scroll-hint" id="scrollHint">⬇️ Прокрутите вниз</div>
   
   <!-- КОНТЕЙНЕР С ПРОКРУТКОЙ -->
   <div id="scrollContainer" class="scrollable-container"></div>
@@ -90,12 +75,15 @@
     // ============================================
     const tg = window.Telegram.WebApp;
     
+    // Отключаем свайпы закрытия
     if (typeof tg.disableVerticalSwipes === 'function') {
       tg.disableVerticalSwipes();
     }
     
+    // Разворачиваем на весь экран
     tg.expand();
     
+    // Получаем Telegram ID
     let telegramId = '123456789';
     if (tg.initDataUnsafe && tg.initDataUnsafe.user) {
       telegramId = String(tg.initDataUnsafe.user.id);
@@ -104,64 +92,8 @@
     console.log('Telegram ID:', telegramId);
     
     // ============================================
-    // АВТОПОДСТРОЙКА ВЫСОТЫ IFRAME
-    // ============================================
-    
-    function resizeIframe(iframe, height) {
-      if (!iframe) return;
-      
-      // Устанавливаем высоту iframe
-      iframe.style.height = height + 'px';
-      
-      // Показываем подсказку о прокрутке, если контент выше контейнера
-      const container = document.getElementById('scrollContainer');
-      const hint = document.getElementById('scrollHint');
-      
-      if (container && hint) {
-        setTimeout(() => {
-          if (container.scrollHeight > container.clientHeight + 50) {
-            hint.style.opacity = '1';
-            setTimeout(() => {
-              hint.style.opacity = '0';
-            }, 3000);
-          }
-        }, 500);
-      }
-      
-      console.log('Высота iframe установлена:', height);
-    }
-    
-    function getFormHeight() {
-      const iframe = document.querySelector('iframe');
-      if (!iframe) return null;
-      
-      try {
-        // Пробуем получить высоту из содержимого iframe
-        if (iframe.contentDocument) {
-          const body = iframe.contentDocument.body;
-          const html = iframe.contentDocument.documentElement;
-          
-          const height = Math.max(
-            body.scrollHeight,
-            body.offsetHeight,
-            html.clientHeight,
-            html.scrollHeight,
-            html.offsetHeight
-          );
-          
-          if (height > 100) {
-            return height;
-          }
-        }
-      } catch (e) {
-        // Игнорируем ошибки доступа
-      }
-      
-      return null;
-    }
-    
-    // ============================================
-    // СОЗДАНИЕ IFRAME
+    // СОЗДАНИЕ IFRAME С ФИКСИРОВАННОЙ ВЫСОТОЙ
+    // Теперь прокрутка внутри iframe
     // ============================================
     
     function createIframe() {
@@ -172,123 +104,88 @@
       
       const iframe = document.createElement('iframe');
       
+      // URL с Telegram ID
       const formUrl = `https://forms.yandex.ru/cloud/638f4e9390fa7b1cb30872ac/?iframe=1&answer_short_text_9008969702497836=${encodeURIComponent(telegramId)}`;
       
       iframe.src = formUrl;
       iframe.frameBorder = '0';
       iframe.name = 'ya-form-638f4e9390fa7b1cb30872ac';
+      
+      // Без фиксации внешней высоты: контент внутри iframe управляет своей прокруткой
       iframe.style.width = '100%';
-      iframe.style.height = '1px'; // Начальная высота
+      iframe.style.height = '1000px';       // стартовая высота, можно увеличить/оптимизировать под нужды
+      iframe.style.minHeight = '1000px';
+      iframe.style.maxHeight = 'none';
+      
+      // ЯВНО РАЗРЕШАЕМ ПРОКРУТКУ внутри iframe (контент внутри iframe будет прокручиваться)
+      iframe.setAttribute('scrolling', 'yes');
+      iframe.setAttribute('seamless', 'seamless');
       
       iframe.onload = function() {
         document.getElementById('loading').style.display = 'none';
-        console.log('Iframe загружен, начинаем определение высоты');
-        
-        // Пробуем получить высоту сразу
-        setTimeout(() => {
-          const height = getFormHeight();
-          if (height) {
-            resizeIframe(iframe, height + 20); // +20 для запаса
-          }
-        }, 500);
-        
-        // Пробуем ещё раз через секунду
-        setTimeout(() => {
-          const height = getFormHeight();
-          if (height) {
-            resizeIframe(iframe, height + 20);
-          }
-        }, 1500);
-        
-        // И ещё раз через 3 секунды (для динамических форм)
-        setTimeout(() => {
-          const height = getFormHeight();
-          if (height) {
-            resizeIframe(iframe, height + 20);
-          }
-        }, 3000);
-        
-        // Периодически проверяем высоту (каждые 2 секунды)
-        const interval = setInterval(() => {
-          const height = getFormHeight();
-          if (height && Math.abs(iframe.offsetHeight - height) > 50) {
-            resizeIframe(iframe, height + 20);
-          }
-        }, 2000);
-        
-        // Останавливаем проверку через 30 секунд
-        setTimeout(() => clearInterval(interval), 30000);
+        console.log('✅ Форма загружена, высота iframe: 1000px');
+        // Никакой принудительной прокрутки внешнего контейнера
       };
       
       container.appendChild(iframe);
     }
 
-    // ЗАПУСК
+    // Запускаем создание iframe
     window.addEventListener('load', createIframe);
     setTimeout(createIframe, 1000);
     
     // ============================================
-    // ФИКС ДЛЯ СКОЛЛА КОНТЕЙНЕРА
+    // АКТИВАЦИЯ ПРОКРУТКИ КОНТЕЙНЕРА (остаточно для корректной прокрутки внутри iframe)
     // ============================================
-    
+    // Теперь прокрутка внешнего контейнера не нужна для прокрутки содержимого iframe.
+    // Но оставим настройки, чтобы внешний контейнер тоже корректно работал.
     const container = document.getElementById('scrollContainer');
-    
     if (container) {
       container.style.overflowY = 'auto';
+      container.style.overflowY = 'scroll';
       container.style.webkitOverflowScrolling = 'touch';
-      
-      // Автоматически скроллим к низу формы, если пользователь там
-      container.addEventListener('scroll', function() {
-        // Можно добавить логику при скролле
-      });
+      container.style.maxHeight = 'none';
+      container.style.height = '100%';
     }
     
     // ============================================
-    // АЛЬТЕРНАТИВНЫЙ МЕТОД: MUTATION OBSERVER
-    // ============================================
-    
-    function observeIframeChanges() {
-      const iframe = document.querySelector('iframe');
-      if (!iframe) return;
-      
-      try {
-        if (iframe.contentDocument) {
-          const observer = new MutationObserver(function() {
-            const height = getFormHeight();
-            if (height) {
-              resizeIframe(iframe, height + 20);
-            }
-          });
-          
-          observer.observe(iframe.contentDocument.body, {
-            childList: true,
-            subtree: true,
-            attributes: true,
-            characterData: true
-          });
-          
-          console.log('MutationObserver запущен');
-        }
-      } catch (e) {
-        console.log('MutationObserver не сработал (same-origin)');
-      }
-    }
-    
-    // Запускаем после загрузки iframe
-    setTimeout(observeIframeChanges, 2000);
-    setTimeout(observeIframeChanges, 4000);
-    
-    // ============================================
-    // ФИНАЛЬНЫЙ КОСТЫЛЬ: ОГРОМНАЯ ВЫСОТА
+    // ПОДСКАЗКА ДЛЯ ПОЛЬЗОВАТЕЛЯ
     // ============================================
     
     setTimeout(() => {
-      const iframe = document.querySelector('iframe');
-      if (iframe && iframe.offsetHeight < 800) {
-        console.log('Финальный фикс: устанавливаем высоту 1500px');
-        iframe.style.height = '1500px';
-      }
-    }, 5000);
+      const hint = document.createElement('div');
+      hint.style.cssText = `
+        position: fixed;
+        bottom: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: rgba(0,0,0,0.7);
+        color: white;
+        padding: 10px 20px;
+        border-radius: 30px;
+        font-size: 14px;
+        z-index: 10001;
+        animation: fadeOut 3s forwards;
+        pointer-events: none;
+      `;
+      hint.textContent = '⬇️ Прокрутите внутри формы, чтобы продолжить';
+      
+      // Добавляем анимацию
+      const style = document.createElement('style');
+      style.textContent = `
+        @keyframes fadeOut {
+          0% { opacity: 1; }
+          70% { opacity: 1; }
+          100% { opacity: 0; }
+        }
+      `;
+      document.head.appendChild(style);
+      
+      document.body.appendChild(hint);
+      
+      // Удаляем подсказку через 3 секунды
+      setTimeout(() => hint.remove(), 3000);
+    }, 1500);
     
   </script>
 
