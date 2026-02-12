@@ -1,4 +1,296 @@
-<script>
-  // Вместо iframe просто редиректим на форму
-  window.location.href = `https://forms.yandex.ru/cloud/638f4e9390fa7b1cb30872ac/?answer_short_text_9008969702497836=${telegramId}`;
-</script>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>TMA</title>
+  <script src="https://telegram.org/js/telegram-web-app.js?59"></script>
+
+  <style>
+    /* ПОЛНОЭКРАННЫЙ РЕЖИМ */
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, avenir next, avenir, segoe ui, helvetica neue, Adwaita Sans, Cantarell, Ubuntu, roboto, noto, helvetica, arial, sans-serif;
+      background: #fff;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* КОНТЕЙНЕР С ПРОКРУТКОЙ */
+    .scrollable-container {
+      flex: 1;
+      width: 100%;
+      height: 100%;
+      overflow-y: auto !important;
+      -webkit-overflow-scrolling: touch;
+      position: relative;
+    }
+
+    /* IFRAME - ВЫСОТА БУДЕТ УСТАНАВЛИВАТЬСЯ СКРИПТОМ */
+    iframe {
+      width: 100%;
+      border: none;
+      display: block;
+      background: white;
+      height: 1px; /* ВРЕМЕННО, ПОТОМ ПЕРЕОПРЕДЕЛИМ */
+      transition: height 0.2s ease; /* Плавное изменение высоты */
+    }
+
+    .loading {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(0,0,0,0.8);
+      color: white;
+      padding: 15px 25px;
+      border-radius: 10px;
+      z-index: 1000;
+      display: none;
+    }
+
+    /* ИНДИКАТОР ТОГО, ЧТО МОЖНО ПРОКРУЧИВАТЬ ДАЛЬШЕ */
+    .scroll-hint {
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0,0,0,0.6);
+      color: white;
+      padding: 8px 16px;
+      border-radius: 20px;
+      font-size: 14px;
+      z-index: 1001;
+      opacity: 0;
+      transition: opacity 0.3s;
+      pointer-events: none;
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="loading" id="loading">Загрузка формы...</div>
+  <div class="scroll-hint" id="scrollHint">⬇️ Прокрутите вниз</div>
+  
+  <!-- КОНТЕЙНЕР С ПРОКРУТКОЙ -->
+  <div id="scrollContainer" class="scrollable-container"></div>
+
+  <script>
+    // ============================================
+    // ИНИЦИАЛИЗАЦИЯ TELEGRAM
+    // ============================================
+    const tg = window.Telegram.WebApp;
+    
+    if (typeof tg.disableVerticalSwipes === 'function') {
+      tg.disableVerticalSwipes();
+    }
+    
+    tg.expand();
+    
+    let telegramId = '123456789';
+    if (tg.initDataUnsafe && tg.initDataUnsafe.user) {
+      telegramId = String(tg.initDataUnsafe.user.id);
+    }
+    
+    console.log('Telegram ID:', telegramId);
+    
+    // ============================================
+    // АВТОПОДСТРОЙКА ВЫСОТЫ IFRAME
+    // ============================================
+    
+    function resizeIframe(iframe, height) {
+      if (!iframe) return;
+      
+      // Устанавливаем высоту iframe
+      iframe.style.height = height + 'px';
+      
+      // Показываем подсказку о прокрутке, если контент выше контейнера
+      const container = document.getElementById('scrollContainer');
+      const hint = document.getElementById('scrollHint');
+      
+      if (container && hint) {
+        setTimeout(() => {
+          if (container.scrollHeight > container.clientHeight + 50) {
+            hint.style.opacity = '1';
+            setTimeout(() => {
+              hint.style.opacity = '0';
+            }, 3000);
+          }
+        }, 500);
+      }
+      
+      console.log('Высота iframe установлена:', height);
+    }
+    
+    function getFormHeight() {
+      const iframe = document.querySelector('iframe');
+      if (!iframe) return null;
+      
+      try {
+        // Пробуем получить высоту из содержимого iframe
+        if (iframe.contentDocument) {
+          const body = iframe.contentDocument.body;
+          const html = iframe.contentDocument.documentElement;
+          
+          const height = Math.max(
+            body.scrollHeight,
+            body.offsetHeight,
+            html.clientHeight,
+            html.scrollHeight,
+            html.offsetHeight
+          );
+          
+          if (height > 100) {
+            return height;
+          }
+        }
+      } catch (e) {
+        // Игнорируем ошибки доступа
+      }
+      
+      return null;
+    }
+    
+    // ============================================
+    // СОЗДАНИЕ IFRAME
+    // ============================================
+    
+    function createIframe() {
+      const container = document.getElementById('scrollContainer');
+      container.innerHTML = '';
+      
+      document.getElementById('loading').style.display = 'block';
+      
+      const iframe = document.createElement('iframe');
+      
+      const formUrl = `https://forms.yandex.ru/cloud/638f4e9390fa7b1cb30872ac/?iframe=1&answer_short_text_9008969702497836=${encodeURIComponent(telegramId)}`;
+      
+      iframe.src = formUrl;
+      iframe.frameBorder = '0';
+      iframe.name = 'ya-form-638f4e9390fa7b1cb30872ac';
+      iframe.style.width = '100%';
+      iframe.style.height = '1px'; // Начальная высота
+      
+      iframe.onload = function() {
+        document.getElementById('loading').style.display = 'none';
+        console.log('Iframe загружен, начинаем определение высоты');
+        
+        // Пробуем получить высоту сразу
+        setTimeout(() => {
+          const height = getFormHeight();
+          if (height) {
+            resizeIframe(iframe, height + 20); // +20 для запаса
+          }
+        }, 500);
+        
+        // Пробуем ещё раз через секунду
+        setTimeout(() => {
+          const height = getFormHeight();
+          if (height) {
+            resizeIframe(iframe, height + 20);
+          }
+        }, 1500);
+        
+        // И ещё раз через 3 секунды (для динамических форм)
+        setTimeout(() => {
+          const height = getFormHeight();
+          if (height) {
+            resizeIframe(iframe, height + 20);
+          }
+        }, 3000);
+        
+        // Периодически проверяем высоту (каждые 2 секунды)
+        const interval = setInterval(() => {
+          const height = getFormHeight();
+          if (height && Math.abs(iframe.offsetHeight - height) > 50) {
+            resizeIframe(iframe, height + 20);
+          }
+        }, 2000);
+        
+        // Останавливаем проверку через 30 секунд
+        setTimeout(() => clearInterval(interval), 30000);
+      };
+      
+      container.appendChild(iframe);
+    }
+
+    // ЗАПУСК
+    window.addEventListener('load', createIframe);
+    setTimeout(createIframe, 1000);
+    
+    // ============================================
+    // ФИКС ДЛЯ СКОЛЛА КОНТЕЙНЕРА
+    // ============================================
+    
+    const container = document.getElementById('scrollContainer');
+    
+    if (container) {
+      container.style.overflowY = 'auto';
+      container.style.webkitOverflowScrolling = 'touch';
+      
+      // Автоматически скроллим к низу формы, если пользователь там
+      container.addEventListener('scroll', function() {
+        // Можно добавить логику при скролле
+      });
+    }
+    
+    // ============================================
+    // АЛЬТЕРНАТИВНЫЙ МЕТОД: MUTATION OBSERVER
+    // ============================================
+    
+    function observeIframeChanges() {
+      const iframe = document.querySelector('iframe');
+      if (!iframe) return;
+      
+      try {
+        if (iframe.contentDocument) {
+          const observer = new MutationObserver(function() {
+            const height = getFormHeight();
+            if (height) {
+              resizeIframe(iframe, height + 20);
+            }
+          });
+          
+          observer.observe(iframe.contentDocument.body, {
+            childList: true,
+            subtree: true,
+            attributes: true,
+            characterData: true
+          });
+          
+          console.log('MutationObserver запущен');
+        }
+      } catch (e) {
+        console.log('MutationObserver не сработал (same-origin)');
+      }
+    }
+    
+    // Запускаем после загрузки iframe
+    setTimeout(observeIframeChanges, 2000);
+    setTimeout(observeIframeChanges, 4000);
+    
+    // ============================================
+    // ФИНАЛЬНЫЙ КОСТЫЛЬ: ОГРОМНАЯ ВЫСОТА
+    // ============================================
+    
+    setTimeout(() => {
+      const iframe = document.querySelector('iframe');
+      if (iframe && iframe.offsetHeight < 800) {
+        console.log('Финальный фикс: устанавливаем высоту 1500px');
+        iframe.style.height = '1500px';
+      }
+    }, 5000);
+    
+  </script>
+
+</body>
+</html>
