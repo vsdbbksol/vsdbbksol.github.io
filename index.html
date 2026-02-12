@@ -14,7 +14,7 @@
       padding: 0;
       width: 100%;
       height: 100%;
-      overflow: hidden; /* Убираем прокрутку у body */
+      overflow: hidden;
     }
 
     body {
@@ -29,19 +29,19 @@
       flex: 1;
       width: 100%;
       height: 100%;
-      overflow-y: auto !important; /* ПРИНУДИТЕЛЬНАЯ ПРОКРУТКА */
-      -webkit-overflow-scrolling: touch; /* Плавный скролл iOS */
+      overflow-y: auto !important;
+      -webkit-overflow-scrolling: touch;
       position: relative;
     }
 
-    /* IFRAME ВНУТРИ ПРОКРУЧИВАЕМОГО КОНТЕЙНЕРА */
+    /* IFRAME - ВЫСОТА БУДЕТ УСТАНАВЛИВАТЬСЯ СКРИПТОМ */
     iframe {
       width: 100%;
-      height: 100%; /* Растягиваем на всю высоту контейнера */
-      min-height: 800px; /* МИНИМАЛЬНАЯ ВЫСОТА, ЧТОБЫ БЫЛО ЧТО ПРОКРУЧИВАТЬ */
       border: none;
       display: block;
       background: white;
+      height: 1px; /* ВРЕМЕННО, ПОТОМ ПЕРЕОПРЕДЕЛИМ */
+      transition: height 0.2s ease; /* Плавное изменение высоты */
     }
 
     .loading {
@@ -56,12 +56,30 @@
       z-index: 1000;
       display: none;
     }
+
+    /* ИНДИКАТОР ТОГО, ЧТО МОЖНО ПРОКРУЧИВАТЬ ДАЛЬШЕ */
+    .scroll-hint {
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0,0,0,0.6);
+      color: white;
+      padding: 8px 16px;
+      border-radius: 20px;
+      font-size: 14px;
+      z-index: 1001;
+      opacity: 0;
+      transition: opacity 0.3s;
+      pointer-events: none;
+    }
   </style>
 </head>
 
 <body>
 
   <div class="loading" id="loading">Загрузка формы...</div>
+  <div class="scroll-hint" id="scrollHint">⬇️ Прокрутите вниз</div>
   
   <!-- КОНТЕЙНЕР С ПРОКРУТКОЙ -->
   <div id="scrollContainer" class="scrollable-container"></div>
@@ -72,15 +90,12 @@
     // ============================================
     const tg = window.Telegram.WebApp;
     
-    // ОТКЛЮЧАЕМ СВАЙПЫ
     if (typeof tg.disableVerticalSwipes === 'function') {
       tg.disableVerticalSwipes();
     }
     
-    // НА ВСЯКИЙ СЛУЧАЙ РАСШИРЯЕМ
     tg.expand();
     
-    // ПОЛУЧАЕМ ID
     let telegramId = '123456789';
     if (tg.initDataUnsafe && tg.initDataUnsafe.user) {
       telegramId = String(tg.initDataUnsafe.user.id);
@@ -89,100 +104,192 @@
     console.log('Telegram ID:', telegramId);
     
     // ============================================
-    // ГЛАВНОЕ: ПРИНУДИТЕЛЬНАЯ ПРОКРУТКА ЧЕРЕЗ КОНТЕЙНЕР
+    // АВТОПОДСТРОЙКА ВЫСОТЫ IFRAME
+    // ============================================
+    
+    function resizeIframe(iframe, height) {
+      if (!iframe) return;
+      
+      // Устанавливаем высоту iframe
+      iframe.style.height = height + 'px';
+      
+      // Показываем подсказку о прокрутке, если контент выше контейнера
+      const container = document.getElementById('scrollContainer');
+      const hint = document.getElementById('scrollHint');
+      
+      if (container && hint) {
+        setTimeout(() => {
+          if (container.scrollHeight > container.clientHeight + 50) {
+            hint.style.opacity = '1';
+            setTimeout(() => {
+              hint.style.opacity = '0';
+            }, 3000);
+          }
+        }, 500);
+      }
+      
+      console.log('Высота iframe установлена:', height);
+    }
+    
+    function getFormHeight() {
+      const iframe = document.querySelector('iframe');
+      if (!iframe) return null;
+      
+      try {
+        // Пробуем получить высоту из содержимого iframe
+        if (iframe.contentDocument) {
+          const body = iframe.contentDocument.body;
+          const html = iframe.contentDocument.documentElement;
+          
+          const height = Math.max(
+            body.scrollHeight,
+            body.offsetHeight,
+            html.clientHeight,
+            html.scrollHeight,
+            html.offsetHeight
+          );
+          
+          if (height > 100) {
+            return height;
+          }
+        }
+      } catch (e) {
+        // Игнорируем ошибки доступа
+      }
+      
+      return null;
+    }
+    
+    // ============================================
+    // СОЗДАНИЕ IFRAME
     // ============================================
     
     function createIframe() {
       const container = document.getElementById('scrollContainer');
-      container.innerHTML = ''; // Очищаем
+      container.innerHTML = '';
       
-      // Показываем загрузку
       document.getElementById('loading').style.display = 'block';
       
-      // СОЗДАЕМ IFRAME
       const iframe = document.createElement('iframe');
       
-      // ВАЖНО: УБИРАЕМ ФИКСИРОВАННУЮ ВЫСОТУ И ДОБАВЛЯЕМ ПАРАМЕТРЫ
       const formUrl = `https://forms.yandex.ru/cloud/638f4e9390fa7b1cb30872ac/?iframe=1&answer_short_text_9008969702497836=${encodeURIComponent(telegramId)}`;
       
       iframe.src = formUrl;
       iframe.frameBorder = '0';
       iframe.name = 'ya-form-638f4e9390fa7b1cb30872ac';
       iframe.style.width = '100%';
-      iframe.style.height = '100%'; // ВАЖНО: растягиваем на весь контейнер
-      iframe.style.minHeight = '800px'; // ГАРАНТИРУЕМ, ЧТО БУДЕТ ПРОКРУТКА
+      iframe.style.height = '1px'; // Начальная высота
       
-      // ПОСЛЕ ЗАГРУЗКИ
       iframe.onload = function() {
         document.getElementById('loading').style.display = 'none';
-        console.log('Iframe загружен');
+        console.log('Iframe загружен, начинаем определение высоты');
         
-        // ПРИНУДИТЕЛЬНО ПРОКРУЧИВАЕМ КОНТЕЙНЕР (для активации скролла)
+        // Пробуем получить высоту сразу
         setTimeout(() => {
-          container.scrollTop = 1;
+          const height = getFormHeight();
+          if (height) {
+            resizeIframe(iframe, height + 20); // +20 для запаса
+          }
         }, 500);
+        
+        // Пробуем ещё раз через секунду
+        setTimeout(() => {
+          const height = getFormHeight();
+          if (height) {
+            resizeIframe(iframe, height + 20);
+          }
+        }, 1500);
+        
+        // И ещё раз через 3 секунды (для динамических форм)
+        setTimeout(() => {
+          const height = getFormHeight();
+          if (height) {
+            resizeIframe(iframe, height + 20);
+          }
+        }, 3000);
+        
+        // Периодически проверяем высоту (каждые 2 секунды)
+        const interval = setInterval(() => {
+          const height = getFormHeight();
+          if (height && Math.abs(iframe.offsetHeight - height) > 50) {
+            resizeIframe(iframe, height + 20);
+          }
+        }, 2000);
+        
+        // Останавливаем проверку через 30 секунд
+        setTimeout(() => clearInterval(interval), 30000);
       };
       
       container.appendChild(iframe);
     }
 
-    // ЗАПУСКАЕМ
+    // ЗАПУСК
     window.addEventListener('load', createIframe);
     setTimeout(createIframe, 1000);
     
     // ============================================
-    // ФИКС ДЛЯ АНДРОИД И ДЕСКТОП
+    // ФИКС ДЛЯ СКОЛЛА КОНТЕЙНЕРА
     // ============================================
     
-    // Принудительно активируем скролл при касании
     const container = document.getElementById('scrollContainer');
     
     if (container) {
-      // На десктопе
-      container.addEventListener('wheel', function(e) {
-        // Разрешаем обычную прокрутку колесиком
-        return true;
-      });
-      
-      // На мобильных
-      container.addEventListener('touchstart', function() {
-        container.style.overflowY = 'auto';
-        container.style.webkitOverflowScrolling = 'touch';
-      });
-      
-      // Принудительно делаем контейнер прокручиваемым
       container.style.overflowY = 'auto';
+      container.style.webkitOverflowScrolling = 'touch';
+      
+      // Автоматически скроллим к низу формы, если пользователь там
+      container.addEventListener('scroll', function() {
+        // Можно добавить логику при скролле
+      });
     }
     
-    // ДОПОЛНИТЕЛЬНЫЙ ФИКС: если внутри iframe есть своя прокрутка,
-    // разрешаем и её
-    window.addEventListener('message', function(event) {
-      if (event.origin === 'https://forms.yandex.ru') {
-        if (event.data && event.data.type === 'form-height') {
-          const iframe = document.querySelector('iframe');
-          if (iframe && event.data.height) {
-            // Подстраиваем высоту под контент
-            iframe.style.minHeight = event.data.height + 'px';
-          }
-        }
-      }
-    });
+    // ============================================
+    // АЛЬТЕРНАТИВНЫЙ МЕТОД: MUTATION OBSERVER
+    // ============================================
     
-  </script>
-  
-  <script>
-    // ============================================
-    // АБСОЛЮТНЫЙ ПОСЛЕДНИЙ ШАНС
-    // ============================================
-    // ЕСЛИ НИЧЕГО НЕ РАБОТАЕТ - УСТАНАВЛИВАЕМ ОГРОМНУЮ ВЫСОТУ
-    setTimeout(function() {
+    function observeIframeChanges() {
       const iframe = document.querySelector('iframe');
-      if (iframe) {
-        iframe.style.minHeight = '2000px';
-        document.getElementById('scrollContainer').style.overflowY = 'scroll';
-        document.getElementById('scrollContainer').style.WebkitOverflowScrolling = 'touch';
+      if (!iframe) return;
+      
+      try {
+        if (iframe.contentDocument) {
+          const observer = new MutationObserver(function() {
+            const height = getFormHeight();
+            if (height) {
+              resizeIframe(iframe, height + 20);
+            }
+          });
+          
+          observer.observe(iframe.contentDocument.body, {
+            childList: true,
+            subtree: true,
+            attributes: true,
+            characterData: true
+          });
+          
+          console.log('MutationObserver запущен');
+        }
+      } catch (e) {
+        console.log('MutationObserver не сработал (same-origin)');
       }
-    }, 3000);
+    }
+    
+    // Запускаем после загрузки iframe
+    setTimeout(observeIframeChanges, 2000);
+    setTimeout(observeIframeChanges, 4000);
+    
+    // ============================================
+    // ФИНАЛЬНЫЙ КОСТЫЛЬ: ОГРОМНАЯ ВЫСОТА
+    // ============================================
+    
+    setTimeout(() => {
+      const iframe = document.querySelector('iframe');
+      if (iframe && iframe.offsetHeight < 800) {
+        console.log('Финальный фикс: устанавливаем высоту 1500px');
+        iframe.style.height = '1500px';
+      }
+    }, 5000);
+    
   </script>
 
 </body>
