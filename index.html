@@ -14,14 +14,12 @@
     body {
       margin: 0;
       padding: 0;
-      overflow-y: scroll;
       font-family: -apple-system, BlinkMacSystemFont, avenir next, avenir, segoe ui, helvetica neue, Adwaita Sans, Cantarell, Ubuntu, roboto, noto, helvetica, arial, sans-serif;
     }
 
     iframe {
       width: 100%;
-      min-height: 600px;
-      height: auto;
+      height: calc(100vh - 20px); /* Максимальная высота, доступная в мини-аппе */
       border: none;
       display: block;
       margin: 0 auto;
@@ -36,11 +34,11 @@
 
     @media (max-width: 768px) {
       body { padding: 10px; }
-      iframe { min-height: 500px; }
+      iframe { height: calc(100vh - 40px); }
     }
 
     @media (max-width: 480px) {
-      iframe { min-height: 400px; }
+      iframe { height: calc(100vh - 60px); }
     }
   </style>
 </head>
@@ -89,37 +87,21 @@
       iframe.frameBorder = '0';
       iframe.name = 'ya-form-638f4e9390fa7b1cb30872ac';
       iframe.style.width = '100%';
-      iframe.style.minHeight = '600px';
-      iframe.style.height = 'auto';
+      iframe.style.height = 'calc(100vh - 20px)'; // Используем полную высоту экрана
       iframe.style.border = 'none';
       
       // Обработка загрузки iframe
       iframe.onload = function() {
         document.getElementById('loading').style.display = 'none';
         console.log('Форма загружена с ID:', telegramId);
-        
-        // Подстраиваем высоту iframe под содержимое
-        adjustIFrameHeight();
       };
       
       // Добавляем на страницу
       container.appendChild(iframe);
     }
 
-    // Функция для автоматической настройки высоты iframe
-    function adjustIFrameHeight() {
-      var iframes = document.querySelectorAll("iframe");
-      for(var i = 0; i < iframes.length; ++i){
-        try{
-          var innerDoc = iframes[i].contentDocument || iframes[i].contentWindow.document;
-          iframes[i].height = innerDoc.body.scrollHeight + "px";
-        } catch(e){}
-      }
-    }
-
     // Запускаем создание iframe после загрузки страницы
     window.addEventListener('load', createIframeWithTelegramId);
-    window.addEventListener("resize", adjustIFrameHeight); // Для обработки изменения размера окна
   </script>
 
   <!-- Убираем статический iframe и embed.js -->
