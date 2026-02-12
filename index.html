@@ -1,60 +1,46 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
   <title>TMA</title>
+   
+  <!--   https://core.telegram.org/bots/webapps#initializing-mini-apps -->
   <script src="https://telegram.org/js/telegram-web-app.js?59"></script>
 
   <style>
-    /* Разрешаем прокрутку документа в целом */
-    html, body {
+    body {
       margin: 0;
       padding: 0;
-      width: 100%;
-      height: 100%;
-      overflow: auto;
-    }
-
-    body {
+      overflow-y: scroll;
       font-family: -apple-system, BlinkMacSystemFont, avenir next, avenir, segoe ui, helvetica neue, Adwaita Sans, Cantarell, Ubuntu, roboto, noto, helvetica, arial, sans-serif;
-      background: #fff;
-      display: flex;
-      flex-direction: column;
     }
 
-    /* Контейнер, внутри которого будет iframe */
-    .scrollable-container {
-      flex: 1 1 auto;
-      width: 100%;
-      height: 100%;
-      overflow: hidden; /* отключаем внешнюю прокрутку внутри этого контейнера */
-      position: relative;
-    }
-
-    /* Сам iframe: не ограничиваем его прокрутку вовне; внутри iframe — своя прокрутка */
     iframe {
       width: 100%;
-      height: 100%;          /* занимать всю высоту контейнера; содержимое внутри iframe прокручивается само по себе */
-      min-height: 1000px;
+      min-height: 600px;
+      height: auto;
       border: none;
       display: block;
-      background: white;
-      overflow: auto;        /* разрешаем внутри iframe прокрутку (если поддерживает хозяин контента) */
+      margin: 0 auto;
     }
 
+    /* Индикатор загрузки */
     .loading {
-      position: fixed;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      background: rgba(0,0,0,0.8);
-      color: white;
-      padding: 15px 25px;
-      border-radius: 10px;
-      z-index: 10000;
+      text-align: center;
+      padding: 20px;
       display: none;
+    }
+
+    @media (max-width: 768px) {
+      body { padding: 10px; }
+      iframe { min-height: 500px; }
+    }
+
+    @media (max-width: 480px) {
+      iframe { min-height: 400px; }
     }
   </style>
 </head>
@@ -63,108 +49,80 @@
 
   <div class="loading" id="loading">Загрузка формы...</div>
 
-  <!-- КОНТЕЙНЕР С ПРОКРУТКОЙ (только внутри себя, внешний документ не ограничивает прокрутку) -->
-  <div id="scrollContainer" class="scrollable-container">
-    <!-- iframe будет вставлен сюда программно -->
-  </div>
-
   <script>
-    // ============================================
-    // ИНИЦИАЛИЗАЦИЯ TELEGRAM
-    // ============================================
+    // Инициализация Telegram WebApp
     const tg = window.Telegram.WebApp;
-
-    // Отключаем свайпы закрытия
-    if (typeof tg.disableVerticalSwipes === 'function') {
-      tg.disableVerticalSwipes();
-    }
-
-    // Разворачиваем на весь экран
     tg.expand();
-
-    // Получаем Telegram ID
-    let telegramId = '123456789';
+    
+    // Получаем ID пользователя
+    let telegramId = '';
+    let userData = {};
+    
     if (tg.initDataUnsafe && tg.initDataUnsafe.user) {
       telegramId = String(tg.initDataUnsafe.user.id);
+      userData = tg.initDataUnsafe.user;
+      console.log('Telegram ID:', telegramId);
+    } else {
+      telegramId = '123456789'; // Тестовый ID
+      console.warn('Тестовый режим');
     }
 
-    console.log('Telegram ID:', telegramId);
-
-    // ============================================
-    // СОЗДАНИЕ IFRAME С ФИКСИРОВАННОЙ ВЫСОТОЙ
-    // Теперь прокрутка внутри iframe
-    // ============================================
-    function createIframe() {
-      const container = document.getElementById('scrollContainer');
-      container.innerHTML = '';
-
+    // СОЗДАЕМ iframe ДИНАМИЧЕСКИ с ID в URL
+    function createIframeWithTelegramId() {
+      const container = document.body;
+      
+      // Убираем старый iframe если есть
+      const oldIframe = document.querySelector('iframe');
+      if (oldIframe) oldIframe.remove();
+      
+      // Скрываем индикатор загрузки
       document.getElementById('loading').style.display = 'block';
-
+      
+      // ФОРМИРУЕМ URL С ПАРАМЕТРОМ
+      // ВАЖНО: Узнайте точное имя поля в вашей форме!
+      // Чаще всего это ans1, field_12345 или просто answer
+      const formUrl = `https://forms.yandex.ru/cloud/638f4e9390fa7b1cb30872ac/?iframe=1&answer_short_text_9008969702497836=${telegramId}`;
+      
+      // Создаем новый iframe
       const iframe = document.createElement('iframe');
-
-      // URL с Telegram ID
-      const formUrl = `https://forms.yandex.ru/cloud/638f4e9390fa7b1cb30872ac/?iframe=1&answer_short_text_9008969702497836=${encodeURIComponent(telegramId)}`;
-
       iframe.src = formUrl;
+      iframe.frameBorder = '0';
       iframe.name = 'ya-form-638f4e9390fa7b1cb30872ac';
-      iframe.setAttribute('frameBorder', '0');
-      iframe.setAttribute('scrolling', 'yes');
-      iframe.setAttribute('seamless', 'seamless');
-
-      // Без фиксированной внешней высоты: внешний контейнер не ограничивает прокрутку
-      iframe.style.height = '100%';
-      iframe.style.minHeight = '1000px';
-      iframe.style.maxHeight = 'none';
-
+      iframe.style.width = '100%';
+      iframe.style.minHeight = '600px';
+      iframe.style.height = 'auto';
+      iframe.style.border = 'none';
+      
+      // Обработка загрузки iframe
       iframe.onload = function() {
         document.getElementById('loading').style.display = 'none';
-        console.log('✅ Форма загружена');
+        console.log('Форма загружена с ID:', telegramId);
+        
+        // Подстраиваем высоту iframe под содержимое
+        adjustIFrameHeight();
       };
-
+      
+      // Добавляем на страницу
       container.appendChild(iframe);
     }
 
-    // Запускаем создание iframe
-    window.addEventListener('load', createIframe);
-    setTimeout(createIframe, 1000);
+    // Функция для автоматической настройки высоты iframe
+    function adjustIFrameHeight() {
+      var iframes = document.querySelectorAll("iframe");
+      for(var i = 0; i < iframes.length; ++i){
+        try{
+          var innerDoc = iframes[i].contentDocument || iframes[i].contentWindow.document;
+          iframes[i].height = innerDoc.body.scrollHeight + "px";
+        } catch(e){}
+      }
+    }
 
-    // ============================================
-    // УДАЛЕНИЕ ВСЕХ ПРИНУДИТЕЛЬНЫХ прокруток
-    // ============================================
-
-    // Подсказка для пользователя
-    setTimeout(() => {
-      const hint = document.createElement('div');
-      hint.style.cssText = `
-        position: fixed;
-        bottom: 20px;
-        left: 50%;
-        transform: translateX(-50%);
-        background: rgba(0,0,0,0.7);
-        color: white;
-        padding: 10px 20px;
-        border-radius: 30px;
-        font-size: 14px;
-        z-index: 10001;
-        animation: fadeOut 3s forwards;
-        pointer-events: none;
-      `;
-      hint.textContent = '⬇️ Прокрутите внутри формы, чтобы продолжить';
-
-      const style = document.createElement('style');
-      style.textContent = `
-        @keyframes fadeOut {
-          0% { opacity: 1; }
-          70% { opacity: 1; }
-          100% { opacity: 0; }
-        }
-      `;
-      document.head.appendChild(style);
-      document.body.appendChild(hint);
-
-      setTimeout(() => hint.remove(), 3000);
-    }, 1500);
+    // Запускаем создание iframe после загрузки страницы
+    window.addEventListener('load', createIframeWithTelegramId);
+    window.addEventListener("resize", adjustIFrameHeight); // Для обработки изменения размера окна
   </script>
 
+  <!-- Убираем статический iframe и embed.js -->
+  
 </body>
 </html>
