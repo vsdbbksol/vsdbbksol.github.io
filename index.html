@@ -3,58 +3,58 @@
 <head>
   <meta charset="UTF-8">
   <meta http-equiv="X-UA-Compatible" content="IE=edge">
-  
-  <!-- ВАЖНО: исправленный meta-viewport для safe area и запрета масштабирования -->
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-
   <title>TMA</title>
-   
-  <!-- Telegram WebApp script -->
   <script src="https://telegram.org/js/telegram-web-app.js?59"></script>
 
   <style>
-    body {
+    /* ПОЛНОЭКРАННЫЙ РЕЖИМ */
+    html, body {
       margin: 0;
-      padding: 0; /* Убираем padding, чтобы iframe был вплотную к краям */
-      font-family: -apple-system, BlinkMacSystemFont, avenir next, avenir, segoe ui, helvetica neue, Adwaita Sans, Cantarell, Ubuntu, roboto, noto, helvetica, arial, sans-serif;
-      background: #fff;
-      
-      /* Важно для safe area на iOS */
-      padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden; /* Убираем прокрутку у body */
     }
 
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, avenir next, avenir, segoe ui, helvetica neue, Adwaita Sans, Cantarell, Ubuntu, roboto, noto, helvetica, arial, sans-serif;
+      background: #fff;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* КОНТЕЙНЕР С ПРОКРУТКОЙ */
+    .scrollable-container {
+      flex: 1;
+      width: 100%;
+      height: 100%;
+      overflow-y: auto !important; /* ПРИНУДИТЕЛЬНАЯ ПРОКРУТКА */
+      -webkit-overflow-scrolling: touch; /* Плавный скролл iOS */
+      position: relative;
+    }
+
+    /* IFRAME ВНУТРИ ПРОКРУЧИВАЕМОГО КОНТЕЙНЕРА */
     iframe {
       width: 100%;
-      max-width: 100%;
-      height: 600px;
+      height: 100%; /* Растягиваем на всю высоту контейнера */
+      min-height: 800px; /* МИНИМАЛЬНАЯ ВЫСОТА, ЧТОБЫ БЫЛО ЧТО ПРОКРУЧИВАТЬ */
       border: none;
       display: block;
-      margin: 0 auto;
-      
-      /* Важно: разрешаем вертикальную прокрутку внутри iframe */
-      touch-action: pan-y;
-      -webkit-overflow-scrolling: touch;
+      background: white;
     }
 
     .loading {
-      text-align: center;
-      padding: 20px;
-      display: none;
-      position: absolute;
+      position: fixed;
       top: 50%;
       left: 50%;
       transform: translate(-50%, -50%);
-      z-index: 1000;
-      background: rgba(255,255,255,0.9);
+      background: rgba(0,0,0,0.8);
+      color: white;
+      padding: 15px 25px;
       border-radius: 10px;
-    }
-
-    @media (max-width: 768px) {
-      iframe { height: 500px; }
-    }
-
-    @media (max-width: 480px) {
-      iframe { height: 400px; }
+      z-index: 1000;
+      display: none;
     }
   </style>
 </head>
@@ -62,153 +62,127 @@
 <body>
 
   <div class="loading" id="loading">Загрузка формы...</div>
+  
+  <!-- КОНТЕЙНЕР С ПРОКРУТКОЙ -->
+  <div id="scrollContainer" class="scrollable-container"></div>
 
   <script>
     // ============================================
-    // ИНИЦИАЛИЗАЦИЯ TELEGRAM WEBAPP
+    // ИНИЦИАЛИЗАЦИЯ TELEGRAM
     // ============================================
     const tg = window.Telegram.WebApp;
     
-    // ------------------------------------------------------------
-    // ИТОГОВЫЙ МИНИМАЛЬНЫЙ ФИКС ДЛЯ ПРОКРУТКИ В TMA
-    // ------------------------------------------------------------
-    
-    // 1. ОФИЦИАЛЬНОЕ РЕШЕНИЕ Telegram (Bot API 7.7+)
+    // ОТКЛЮЧАЕМ СВАЙПЫ
     if (typeof tg.disableVerticalSwipes === 'function') {
       tg.disableVerticalSwipes();
-      console.log('✅ Vertical swipes disabled');
-    } else {
-      console.log('⚠️ disableVerticalSwipes не поддерживается, используется fallback');
-      
-      // 2. СТРАХОВКА для старых версий
-      // Принудительно делаем страницу скроллируемой
-      const ensureScrollable = () => {
-        if (document.documentElement.scrollHeight <= window.innerHeight) {
-          document.documentElement.style.setProperty('height', 'calc(100vh + 2px)', 'important');
-        }
-        
-        // Никогда не даём scrollY быть 0
-        if (window.scrollY === 0) {
-          window.scrollTo(0, 1);
-        }
-      };
-      
-      // Запускаем при загрузке
-      ensureScrollable();
-      
-      // При каждом касании экрана
-      document.body.addEventListener('touchstart', ensureScrollable);
-      
-      // При изменении размера экрана
-      window.addEventListener('resize', ensureScrollable);
     }
     
-    // 3. ФИКС SAFE AREA ДЛЯ iOS
-    if (window.visualViewport) {
-      const fixSafeArea = () => {
-        document.body.style.height = window.visualViewport.height + 'px';
-      };
-      
-      window.visualViewport.addEventListener('resize', fixSafeArea);
-      // Первоначальный вызов
-      fixSafeArea();
-    }
-    
-    // 4. Расширяем приложение на весь экран
+    // НА ВСЯКИЙ СЛУЧАЙ РАСШИРЯЕМ
     tg.expand();
     
-    // ============================================
-    // ПОЛУЧЕНИЕ TELEGRAM ID
-    // ============================================
-    let telegramId = '';
-    let userData = {};
-    
+    // ПОЛУЧАЕМ ID
+    let telegramId = '123456789';
     if (tg.initDataUnsafe && tg.initDataUnsafe.user) {
       telegramId = String(tg.initDataUnsafe.user.id);
-      userData = tg.initDataUnsafe.user;
-      console.log('📱 Telegram ID пользователя:', telegramId);
-    } else {
-      telegramId = '123456789'; // Тестовый ID
-      console.warn('⚠️ Тестовый режим, используется ID: 123456789');
     }
-
+    
+    console.log('Telegram ID:', telegramId);
+    
     // ============================================
-    // СОЗДАНИЕ IFRAME С ПАРАМЕТРОМ В URL
+    // ГЛАВНОЕ: ПРИНУДИТЕЛЬНАЯ ПРОКРУТКА ЧЕРЕЗ КОНТЕЙНЕР
     // ============================================
-    function createIframeWithTelegramId() {
-      const container = document.body;
+    
+    function createIframe() {
+      const container = document.getElementById('scrollContainer');
+      container.innerHTML = ''; // Очищаем
       
-      // Убираем старый iframe если есть
-      const oldIframe = document.querySelector('iframe');
-      if (oldIframe) oldIframe.remove();
-      
-      // Показываем индикатор загрузки
+      // Показываем загрузку
       document.getElementById('loading').style.display = 'block';
       
-      // ВАЖНО: замените ИМЯ_ПОЛЯ на актуальное из вашей формы
-      // Сейчас используется стандартное поле short text
-      const fieldName = 'answer_short_text_9008969702497836';
-      
-      // Формируем URL с Telegram ID
-      const formUrl = `https://forms.yandex.ru/cloud/638f4e9390fa7b1cb30872ac/?iframe=1&${fieldName}=${encodeURIComponent(telegramId)}`;
-      
-      // Создаем новый iframe
+      // СОЗДАЕМ IFRAME
       const iframe = document.createElement('iframe');
+      
+      // ВАЖНО: УБИРАЕМ ФИКСИРОВАННУЮ ВЫСОТУ И ДОБАВЛЯЕМ ПАРАМЕТРЫ
+      const formUrl = `https://forms.yandex.ru/cloud/638f4e9390fa7b1cb30872ac/?iframe=1&answer_short_text_9008969702497836=${encodeURIComponent(telegramId)}`;
+      
       iframe.src = formUrl;
       iframe.frameBorder = '0';
       iframe.name = 'ya-form-638f4e9390fa7b1cb30872ac';
       iframe.style.width = '100%';
-      iframe.style.height = '600px';
-      iframe.style.border = 'none';
+      iframe.style.height = '100%'; // ВАЖНО: растягиваем на весь контейнер
+      iframe.style.minHeight = '800px'; // ГАРАНТИРУЕМ, ЧТО БУДЕТ ПРОКРУТКА
       
-      // ВАЖНО: разрешаем прокрутку внутри iframe
-      iframe.setAttribute('scrolling', 'yes');
-      iframe.setAttribute('seamless', 'seamless');
-      
-      // Обработка загрузки iframe
+      // ПОСЛЕ ЗАГРУЗКИ
       iframe.onload = function() {
         document.getElementById('loading').style.display = 'none';
-        console.log('✅ Форма загружена с ID:', telegramId);
+        console.log('Iframe загружен');
         
-        // Пробуем дополнительно проскроллить
-        setTimeout(() => window.scrollTo(0, 1), 100);
+        // ПРИНУДИТЕЛЬНО ПРОКРУЧИВАЕМ КОНТЕЙНЕР (для активации скролла)
+        setTimeout(() => {
+          container.scrollTop = 1;
+        }, 500);
       };
       
-      // Обработка ошибок загрузки
-      iframe.onerror = function() {
-        document.getElementById('loading').style.display = 'none';
-        console.error('❌ Ошибка загрузки формы');
-      };
-      
-      // Добавляем на страницу
       container.appendChild(iframe);
     }
 
-    // Запускаем создание iframe после загрузки страницы
-    window.addEventListener('load', createIframeWithTelegramId);
-    
-    // Дополнительно: пробуем еще раз через 1 секунду, если load не сработал
-    setTimeout(createIframeWithTelegramId, 1000);
+    // ЗАПУСКАЕМ
+    window.addEventListener('load', createIframe);
+    setTimeout(createIframe, 1000);
     
     // ============================================
-    // ДОПОЛНИТЕЛЬНЫЙ ФИКС ДЛЯ iOS WEBVIEW
+    // ФИКС ДЛЯ АНДРОИД И ДЕСКТОП
     // ============================================
-    // Принудительно показываем скроллбар на iOS
-    if (/iPhone|iPad|iPod/i.test(navigator.userAgent)) {
-      const style = document.createElement('style');
-      style.textContent = `
-        ::-webkit-scrollbar {
-          -webkit-appearance: none;
-          width: 7px;
-        }
-        ::-webkit-scrollbar-thumb {
-          border-radius: 4px;
-          background-color: rgba(0,0,0,0.3);
-          -webkit-box-shadow: 0 0 1px rgba(255,255,255,0.5);
-        }
-      `;
-      document.head.appendChild(style);
+    
+    // Принудительно активируем скролл при касании
+    const container = document.getElementById('scrollContainer');
+    
+    if (container) {
+      // На десктопе
+      container.addEventListener('wheel', function(e) {
+        // Разрешаем обычную прокрутку колесиком
+        return true;
+      });
+      
+      // На мобильных
+      container.addEventListener('touchstart', function() {
+        container.style.overflowY = 'auto';
+        container.style.webkitOverflowScrolling = 'touch';
+      });
+      
+      // Принудительно делаем контейнер прокручиваемым
+      container.style.overflowY = 'auto';
     }
+    
+    // ДОПОЛНИТЕЛЬНЫЙ ФИКС: если внутри iframe есть своя прокрутка,
+    // разрешаем и её
+    window.addEventListener('message', function(event) {
+      if (event.origin === 'https://forms.yandex.ru') {
+        if (event.data && event.data.type === 'form-height') {
+          const iframe = document.querySelector('iframe');
+          if (iframe && event.data.height) {
+            // Подстраиваем высоту под контент
+            iframe.style.minHeight = event.data.height + 'px';
+          }
+        }
+      }
+    });
+    
+  </script>
+  
+  <script>
+    // ============================================
+    // АБСОЛЮТНЫЙ ПОСЛЕДНИЙ ШАНС
+    // ============================================
+    // ЕСЛИ НИЧЕГО НЕ РАБОТАЕТ - УСТАНАВЛИВАЕМ ОГРОМНУЮ ВЫСОТУ
+    setTimeout(function() {
+      const iframe = document.querySelector('iframe');
+      if (iframe) {
+        iframe.style.minHeight = '2000px';
+        document.getElementById('scrollContainer').style.overflowY = 'scroll';
+        document.getElementById('scrollContainer').style.WebkitOverflowScrolling = 'touch';
+      }
+    }, 3000);
   </script>
 
 </body>
