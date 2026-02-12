@@ -1,4 +1,48 @@
-<script>
-  // Вместо iframe просто редиректим на форму
-  window.location.href = `https://forms.yandex.ru/cloud/638f4e9390fa7b1cb30872ac/?answer_short_text_9008969702497836=${telegramId}`;
-</script>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TMA Redirect</title>
+  
+  <!-- ОБЯЗАТЕЛЬНО: подключаем Telegram WebApp -->
+  <script src="https://telegram.org/js/telegram-web-app.js?59"></script>
+</head>
+<body>
+  <script>
+    // ============================================
+    // ПОЛУЧАЕМ TELEGRAM ID
+    // ============================================
+    const tg = window.Telegram.WebApp;
+    tg.expand();
+    
+    let telegramId = '';
+    
+    // Проверяем, есть ли данные пользователя
+    if (tg.initDataUnsafe && tg.initDataUnsafe.user) {
+      telegramId = String(tg.initDataUnsafe.user.id);
+    } else {
+      // Тестовый режим
+      telegramId = '123456789';
+      console.warn('Тестовый режим, используется ID: 123456789');
+    }
+    
+    // ============================================
+    // РЕДИРЕКТ НА ФОРМУ С TELEGRAM ID
+    // ============================================
+    const formUrl = `https://forms.yandex.ru/cloud/638f4e9390fa7b1cb30872ac/?answer_short_text_9008969702497836=${encodeURIComponent(telegramId)}`;
+    
+    console.log('Перенаправление на:', formUrl);
+    
+    // Выполняем редирект
+    window.location.href = formUrl;
+  </script>
+  
+  <!-- Сообщение на случай, если редирект не сработает -->
+  <p style="text-align: center; margin-top: 50px; font-family: sans-serif;">
+    Если перенаправление не происходит автоматически, 
+    <a href="#" onclick="window.location.href = window.location.href">нажмите здесь</a>.
+  </p>
+</body>
+</html>
