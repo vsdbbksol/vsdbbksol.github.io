@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>TMA</title>
+   
+  <!--   https://core.telegram.org/bots/webapps#initializing-mini-apps -->
+  <script src="https://telegram.org/js/telegram-web-app.js?59"></script>
+
+  <style>
+    body {
+      margin: 0;
+      padding: 10px;
+      font-family: -apple-system, BlinkMacSystemFont, avenir next, avenir, segoe ui, helvetica neue, Adwaita Sans, Cantarell, Ubuntu, roboto, noto, helvetica, arial, sans-serif;
+    }
+
+    h1 {
+      text-align: center;
+      margin-bottom: 10px;
+    }
+
+    iframe {
+      width: 100%;
+      max-width: 100%;
+      height: 600px;
+      border: none;
+      display: block;
+      margin: 0 auto;
+    }
+
+    /* Для мобильных устройств */
+    @media (max-width: 768px) {
+      body {
+        padding: 10px;
+      }
+
+      iframe {
+        height: 500px;
+      }
+    }
+
+    /* Для очень маленьких экранов */
+    @media (max-width: 480px) {
+      iframe {
+        height: 400px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- <h1>Заголовок формы</h1> -->
+
+  <script>
+    // Инициализация Telegram WebApp
+    const tg = window.Telegram.WebApp;
+    
+    // Расширяем приложение на весь экран
+    tg.expand();
+    
+    // Получаем информацию о пользователе Telegram
+    let telegramId = '';
+    
+    if (tg.initDataUnsafe && tg.initDataUnsafe.user) {
+      // ID пользователя может быть строкой или числом, приводим к строке
+      telegramId = String(tg.initDataUnsafe.user.id);
+      console.log('Telegram ID пользователя:', telegramId);
+    } else {
+      // Если не удалось получить ID (например, при тестировании вне Telegram)
+      telegramId = 'test_user_123';
+      console.warn('Не удалось получить Telegram ID, используется тестовое значение');
+    }
+
+    // Функция для предзаполнения поля в форме
+    function fillTelegramId() {
+      const iframe = document.querySelector('iframe[name="ya-form-638f4e9390fa7b1cb30872ac"]');
+      
+      if (iframe && iframe.contentWindow) {
+        try {
+          // Отправляем сообщение в iframe с данными для заполнения поля
+          iframe.contentWindow.postMessage({
+            type: 'fill-field',
+            fieldName: 'answer_short_text_9008969702497836',
+            value: telegramId
+          }, 'https://forms.yandex.ru');
+          
+          console.log('Отправлен запрос на заполнение поля');
+        } catch (e) {
+          console.error('Ошибка при отправке данных в iframe:', e);
+        }
+      } else {
+        console.error('Iframe не найден');
+      }
+    }
+
+    // Ждем загрузки iframe и формы
+    window.addEventListener('load', function() {
+      const iframe = document.querySelector('iframe[name="ya-form-638f4e9390fa7b1cb30872ac"]');
+      
+      if (iframe) {
+        // Пробуем заполнить сразу после загрузки
+        setTimeout(fillTelegramId, 1500);
+        
+        // И еще раз через 3 секунды для надежности
+        setTimeout(fillTelegramId, 3000);
+        
+        // Также слушаем сообщения от iframe о готовности формы
+        window.addEventListener('message', function(event) {
+          if (event.origin === 'https://forms.yandex.ru') {
+            if (event.data.type === 'form-ready' || event.data.type === 'frame-loaded') {
+              console.log('Форма готова, заполняем поле');
+              fillTelegramId();
+            }
+          }
+        });
+      }
+    });
+  </script>
+
+  <!-- код iframe яндекс формы с убранным параметром ширины width="650"  -->
+  <script src="https://forms.yandex.ru/_static/embed.js"></script>
+  <iframe src="https://forms.yandex.ru/cloud/638f4e9390fa7b1cb30872ac/?iframe=1" frameborder="0" name="ya-form-638f4e9390fa7b1cb30872ac"></iframe>
+
+  <!-- Дополнительный скрипт для прямой работы с DOM формы (альтернативный метод) -->
+  <script>
+    // Альтернативный метод для заполнения поля, если postMessage не сработает
+    function tryDirectFill() {
+      const iframe = document.querySelector('iframe[name="ya-form-638f4e9390fa7b1cb30872ac"]');
+      
+      if (iframe && iframe.contentDocument) {
+        try {
+          // Ищем поле по ID или name внутри iframe
+          const field = iframe.contentDocument.querySelector('[name="answer_short_text_9008969702497836"], #answer_short_text_9008969702497836, [data-field-id="9008969702497836"]');
+          
+          if (field) {
+            field.value = telegramId;
+            // Триггерим события, чтобы форма поняла, что значение изменилось
+            field.dispatchEvent(new Event('input', { bubbles: true }));
+            field.dispatchEvent(new Event('change', { bubbles: true }));
+            console.log('Поле заполнено напрямую:', telegramId);
+          }
+        } catch (e) {
+          // Ошибка может возникнуть из-за политики same-origin, но пробуем
+          console.log('Не удалось получить прямой доступ к iframe (same-origin policy)');
+        }
+      }
+    }
+
+    // Пробуем прямой доступ после загрузки
+    setTimeout(tryDirectFill, 2000);
+    setTimeout(tryDirectFill, 3500);
+  </script>
+
+</body>
+</html>
